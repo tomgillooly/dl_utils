@@ -155,9 +155,11 @@ def train(args, model, train_loader, validation_loader):
     train_step = 0
 
     train_load_iter = iter(train_loader)
+    validation_load_iter = iter(validation_loader)
 
     for epoch in range(args.load_epoch, args.n_epochs):
         for epoch_step, data in enumerate(train_load_iter):
+            model.train()
             model.zero_optimisers()
 
             loss = model.forward(data)
@@ -166,8 +168,21 @@ def train(args, model, train_loader, validation_loader):
 
             model.step_optimisers()
 
+            plotter.add_plot_data(('loss', loss.item(), epoch, epoch_step))
             for key, value in model.get_metrics().items():
                 plotter.add_plot_data(key, value, epoch, epoch_step)
+
+            model.eval()
+            try:
+                data = next(validation_load_iter)
+            except StopIteration:
+                validation_load_iter = iter(validation_loader)
+                data = next(validation_load_iter)
+
+            loss = model.forward(data)
+            plotter.add_plot_data(('validation_loss', loss.item(), epoch, epoch_step))
+            for key, value in model.get_metrics().items():
+                plotter.add_plot_data('validation_' + key, value, epoch, epoch_step)
 
             if (train_step+1) % args.print_every == 0:
                 plotter.print_plot_data(epoch, epoch_step)
