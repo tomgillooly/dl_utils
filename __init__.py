@@ -53,6 +53,8 @@ class BaseParser(argparse.ArgumentParser):
 
             os.makedirs(os.path.join(args.save_dir, args.name), exist_ok=True)
 
+            args.log_file_name = os.path.join(args.save_dir, args.name, 'log_{}.log'.format(now_string))
+
             with open(os.path.join(args.save_dir, args.name, 'opts_{}.txt'.format(now_string)), 'w') as file:
                 for name, val in sorted(vars(args).items()):
                     file.write('{}:{}\n'.format(name, val))
@@ -123,6 +125,23 @@ class Plotter(object):
             file.write(message + '\n')
 
         print(message)
+
+
+def BaseModel(object):
+    def forward(self, input):
+        raise NotImplementedError('Model forward pass not implemented')
+
+    def zero_optimisers(self):
+        raise NotImplementedError('Model zero optimisers not implemented')
+
+    def step_optimisers(self):
+        raise NotImplementedError('Model step optimisers not implemented')
+
+    def get_metrics(self):
+        raise NotImplementedError('Model get metrics not implemented')
+
+    def to(self, device):
+        raise NotImplementedError('Model to-device not implemented')
 
 
 def train(args, model, train_loader, validation_loader):
