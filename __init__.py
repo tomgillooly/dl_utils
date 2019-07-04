@@ -26,7 +26,6 @@ class BaseParser(argparse.ArgumentParser):
         self.add_argument('--n_epochs', type=int, default=5)
         self.add_argument('--start_epoch', type=int, default=1)
         self.add_argument('--load_epoch', type=str, default='')
-        self.add_argument('--load_epoch', type=int, default=-1)
 
         self.add_argument('--print_every', type=int, default=5000)
         self.add_argument('--plot_every', type=int, default=100)
@@ -127,7 +126,7 @@ class Plotter(object):
         print(message)
 
 
-def BaseModel(object):
+class BaseModel(object):
     def forward(self, input):
         raise NotImplementedError('Model forward pass not implemented')
 
@@ -142,6 +141,12 @@ def BaseModel(object):
 
     def to(self, device):
         raise NotImplementedError('Model to-device not implemented')
+
+    def train(self):
+        raise NotImplementedError('Model train method not implemented')
+
+    def eval(self):
+        raise NotImplementedError('Model eval method not implemented')
 
 
 def train(args, model, train_loader, validation_loader):
@@ -163,8 +168,8 @@ def train(args, model, train_loader, validation_loader):
         state_dict = torch.load(os.path.join('checkpoints', args.name,
                                              '{}_{}.pth'.format(model.save_name, args.load_epoch)))
 
-        if 'stop_step' in state_dict.keys():
-            args.load_epoch = state_dict.pop('stop_step')+1
+        if 'stop_epoch' in state_dict.keys():
+            args.load_epoch = state_dict.pop('stop_epoch')+1
             print('Loading step {}'.format(args.load_epoch))
 
         model.load_state_dict(state_dict)
@@ -209,7 +214,7 @@ def train(args, model, train_loader, validation_loader):
 
             if (train_step+1) % args.save_every == 0:
                 state_dict = model.state_dict()
-                state_dict['stop_step'] = epoch
+                state_dict['stop_epoch'] = epoch
                 torch.save(state_dict,
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
