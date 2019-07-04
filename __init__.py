@@ -5,7 +5,7 @@ import os
 import subprocess
 import torch
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from zlib import crc32
 
 
@@ -68,10 +68,7 @@ class DummyVisdom(object):
     def __init__(self, *args, **kwargs):
         pass
 
-    def add_plot_data(self, name, data, epoch, iter):
-        pass
-
-    def plot_line(self):
+    def line(self, *args, **kwargs):
         pass
 
 
@@ -86,12 +83,14 @@ class Plotter(object):
         self.args = args
         self.total_epoch_iters = dataset_len / args.batch_size
 
-        self.running_plot_data = defaultdict(list)
+        self.running_plot_data = OrderedDict()
         self.plot_data = defaultdict(list)
 
         self.base_win_id = crc32(bytes(args.name, encoding='latin1'))
 
     def add_plot_data(self, name, data, epoch, iter):
+        if name not in self.running_plot_data.keys():
+            self.running_plot_data[name] = []
         self.running_plot_data[name].append((epoch + float(iter) / self.total_epoch_iters, data))
 
     def process_plot_data(self):
@@ -148,6 +147,9 @@ class BaseModel(object):
     def eval(self):
         raise NotImplementedError('Model eval method not implemented')
 
+    def state_dict(self):
+        raise NotImplementedError('Model state dict method not implemented')
+
 
 def train(args, model, train_loader, validation_loader):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -178,10 +180,10 @@ def train(args, model, train_loader, validation_loader):
 
     train_step = 0
 
-    train_load_iter = iter(train_loader)
     validation_load_iter = iter(validation_loader)
 
     for epoch in range(args.load_epoch, args.n_epochs):
+        train_load_iter = iter(train_loader)
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
             model.zero_optimisers()
@@ -192,7 +194,7 @@ def train(args, model, train_loader, validation_loader):
 
             model.step_optimisers()
 
-            plotter.add_plot_data(('loss', loss.item(), epoch, epoch_step))
+            plotter.add_plot_data('loss', loss.item(), epoch, epoch_step)
             for key, value in model.get_metrics().items():
                 plotter.add_plot_data(key, value, epoch, epoch_step)
 
@@ -204,7 +206,7 @@ def train(args, model, train_loader, validation_loader):
                 data = next(validation_load_iter)
 
             loss = model.forward(data)
-            plotter.add_plot_data(('validation_loss', loss.item(), epoch, epoch_step))
+            plotter.add_plot_data('validation_loss', loss.item(), epoch, epoch_step)
             for key, value in model.get_metrics().items():
                 plotter.add_plot_data('validation_' + key, value, epoch, epoch_step)
 
