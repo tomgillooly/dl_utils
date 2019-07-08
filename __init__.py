@@ -9,6 +9,14 @@ from collections import defaultdict, OrderedDict
 from zlib import crc32
 
 
+def list_collate(batch):
+    output = {}
+    for key in batch[0].keys():
+        output[key] = [data[key] for data in batch]
+
+    return output
+
+
 class BaseParser(argparse.ArgumentParser):
     def __init__(self):
         super(BaseParser, self).__init__()
@@ -205,7 +213,8 @@ def train(args, model, train_loader, validation_loader):
                 validation_load_iter = iter(validation_loader)
                 data = next(validation_load_iter)
 
-            loss = model.forward(data)
+            with torch.no_grad():
+                loss = model.forward(data)
             plotter.add_plot_data('validation_loss', loss.item(), epoch, epoch_step)
             for key, value in model.get_metrics().items():
                 plotter.add_plot_data('validation_' + key, value, epoch, epoch_step)
