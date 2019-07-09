@@ -8,6 +8,8 @@ import torch
 from collections import defaultdict, OrderedDict
 from zlib import crc32
 
+from . import metrics
+
 
 def list_collate(batch):
     output = {}
@@ -139,25 +141,31 @@ class BaseModel(object):
         raise NotImplementedError('Model forward pass not implemented')
 
     def zero_optimisers(self):
-        raise NotImplementedError('Model zero optimisers not implemented')
+        [optimiser.zero_grad() for optimiser in self.optimisers]
 
     def step_optimisers(self):
-        raise NotImplementedError('Model step optimisers not implemented')
+        [optimiser.step() for optimiser in self.optimisers]
 
     def get_metrics(self):
         raise NotImplementedError('Model get metrics not implemented')
 
     def to(self, device):
-        raise NotImplementedError('Model to-device not implemented')
+        self.model = self.model.to(device)
+        self.device = device
+
+        return self
 
     def train(self):
-        raise NotImplementedError('Model train method not implemented')
+        self.model.train()
 
     def eval(self):
-        raise NotImplementedError('Model eval method not implemented')
+        self.model.eval()
 
     def state_dict(self):
-        raise NotImplementedError('Model state dict method not implemented')
+        return self.model.state_dict()
+
+    def __repr__(self):
+        return repr(self.model)
 
 
 def train(args, model, train_loader, validation_loader):
@@ -235,3 +243,60 @@ def train(args, model, train_loader, validation_loader):
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
             train_step += 1
+
+
+
+def _topological_loop(theta, batch_sizes):
+    new = theta.new
+
+    # batch_sizes is from packed_sequence, i.e. each element is the 'stride' within
+    # the sequence data till the next element of the same batch
+    B = batch_sizes[0].item()
+    # So this, T, is the number of chunks in the packed sequence
+    T = len(batch_sizes)
+    # Theta itself is the packed sequence, so we have L as the flattened sequence length
+    # S is the number of alignable states, note that this will be padded with infs, as the number of target states
+    # varies across a batch
+    L, S = theta.size()
+
+    # Q stores history of gradients across sequence/batch
+    Q = new(L, S+1).fill_(np.float('inf'))
+    # V stores the history of potentials across the sequence
+    # V[i, j] gives the cost of being in state j at time (i % batch_size) (i.e. this is a packed sequence). We pad with
+    # an additional B elements to give an initial state of zero
+    # Initialise with inf as some transitions at the start aren't valid - we begin in the upper left corner and not
+    # all nodes are reachable from this parent node
+    V = new(L + B, S+1).fill_(np.float('inf'))
+    # i.e. we force position 0 for each batch (so a slice of elements of size B at the start of B) to be zero
+    V[:B, 0] = 0
+
+    left = B
+    prev_length = B
+
+    # For each step along sequence
+    for t in range(1, T+1):
+        # Handling the end case, which is just to put final result into Vt and Qt
+        if t == T:
+            cur_length = 0
+        else:
+            # cur_length means step to the next element in batch/size of chunk
+            cur_length = batch_sizes[t]
+        right = left + cur_length
+        prev_left = left - prev_length
+        # We cut at prev_right + cur_length - prev_length, to cut off any trailing batches
+        # which we are no longer considering.
+        prev_cut = right - prev_length
+        len_term = prev_length - cur_length
+
+        if cur_length != 0:
+            # This is the dynamic part, the softmin of the total cost to get to each parent node
+            v_prev, Q[left-B:right-B, :-1] = \
+                torch.cat((V[prev_left:prev_cut, :-1, None], V[prev_left:prev_cut, 1:, None]), dim=-1).min(dim=-1)
+            # Remember theta is a packed sequence, so this is a cut across batches at a sequence index
+            # So the slice of theta is the potential of transitioning from si-1 to si
+            V[left:right, 1:] = (theta[left-B:right-B, :] + v_prev)
+
+        left = right
+        prev_length = cur_length
+
+    return V, Q
