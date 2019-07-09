@@ -23,6 +23,7 @@ class BaseParser(argparse.ArgumentParser):
 
         self.add_argument('--name', type=str, default='sandbox')
         self.add_argument('--dataroot', type=str, default='/home/tom/cluster/Matterport3DSimulator/data/dumb_trajectories')
+        self.add_argument('--gt_dataroot', type=str, default='/home/tom/cluster/Matterport3DSimulator/data/dumb_trajectories')
         self.add_argument('--phase', type=str, default='train')
         self.add_argument('--batch_size', type=int, default=1)
         self.add_argument('--num_workers', type=int, default=4)
@@ -164,6 +165,8 @@ def train(args, model, train_loader, validation_loader):
 
     print(model)
 
+    print('Loaded {} training data points'.format(len(train_loader.dataset)))
+
     model = model.to(device)
 
     plotter = Plotter(args, len(train_loader.dataset))
@@ -190,17 +193,19 @@ def train(args, model, train_loader, validation_loader):
 
     validation_load_iter = iter(validation_loader)
 
+    model.zero_optimisers()
     for epoch in range(args.load_epoch, args.n_epochs):
         train_load_iter = iter(train_loader)
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
-            model.zero_optimisers()
 
             loss = model.forward(data)
 
             loss.backward()
 
-            model.step_optimisers()
+            if args.batch_repeats:
+                model.step_optimisers()
+                model.zero_optimisers()
 
             plotter.add_plot_data('loss', loss.item(), epoch, epoch_step)
             for key, value in model.get_metrics().items():
