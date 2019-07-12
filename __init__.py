@@ -195,11 +195,12 @@ def train(args, model, train_loader, validation_loader):
 
     model.zero_optimisers()
     for epoch in range(args.load_epoch, args.n_epochs):
+        epoch_start_time = datetime.datetime.now()
         train_load_iter = iter(train_loader)
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
 
-            loss = model.forward(data)
+            loss = model.forward(data) / args.batch_repeats
 
             loss.backward()
 
@@ -235,3 +236,7 @@ def train(args, model, train_loader, validation_loader):
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
             train_step += 1
+
+        epoch_length = datetime.datetime.now() - epoch_start_time
+
+        print('Finished epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600, (epoch_length.seconds//60)%60, epoch_length.seconds%60))
