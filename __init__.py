@@ -234,9 +234,9 @@ def train(args, model, train_loader, validation_loader):
                 model.step_optimisers()
                 model.zero_optimisers()
 
-            plotter.add_plot_data('loss', loss.item(), epoch, epoch_step)
+            plotter.add_plot_data('loss', loss.item(), epoch, train_step)
             for key, value in model.get_metrics().items():
-                plotter.add_plot_data(key, value, epoch, epoch_step)
+                plotter.add_plot_data(key, value, epoch, train_step)
 
             model.eval()
             try:
@@ -246,13 +246,13 @@ def train(args, model, train_loader, validation_loader):
                 data = next(validation_load_iter)
 
             with torch.no_grad():
-                loss = model.forward(data)
-            plotter.add_plot_data('validation_loss', loss.item(), epoch, epoch_step)
+                loss = model.forward(data) / args.batch_repeats
+            plotter.add_plot_data('validation_loss', loss.item(), epoch, train_step)
             for key, value in model.get_metrics().items():
-                plotter.add_plot_data('validation_' + key, value, epoch, epoch_step)
+                plotter.add_plot_data('validation_' + key, value, epoch, train_step)
 
             if (train_step+1) % args.print_every == 0:
-                plotter.print_plot_data(epoch, epoch_step)
+                plotter.print_plot_data(epoch, train_step)
                 plotter.plot_line()
 
             if (train_step+1) % args.save_every == 0:
