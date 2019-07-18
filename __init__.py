@@ -6,6 +6,7 @@ import subprocess
 import torch
 
 from collections import defaultdict, OrderedDict
+from hashlib import md5
 from zlib import crc32
 
 from . import metrics
@@ -164,11 +165,28 @@ class BaseModel(object):
     def state_dict(self):
         return self.model.state_dict()
 
+    def load_state_dict(self, state_dict):
+        if 'stop_epoch' in state_dict.keys():
+            state_dict.pop('stop_epoch')
+        return self.model.load_state_dict(state_dict)
+
     def __repr__(self):
         return repr(self.model)
 
 
+def get_hash(filename):
+    m = md5()
+    m.update(filename.encode())
+
+    return m.digest()
+
+
 def train(args, model, train_loader, validation_loader):
+    train_set = set([data['data_hash'] for data in train_loader.dataset])
+    validation_set = set([data['data_hash'] for data in validation_loader.dataset])
+
+    assert len(train_set.intersection(validation_set)) == 0
+
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     print(model)
