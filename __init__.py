@@ -217,8 +217,6 @@ def train(args, model, train_loader, validation_loader):
 
     train_step = 0
 
-    validation_load_iter = iter(validation_loader)
-
     model.zero_optimisers()
     for epoch in range(args.load_epoch, args.n_epochs):
         epoch_start_time = datetime.datetime.now()
@@ -230,26 +228,13 @@ def train(args, model, train_loader, validation_loader):
 
             loss.backward()
 
-            if args.batch_repeats:
+            if (train_step+1) % args.batch_repeats == 0:
                 model.step_optimisers()
                 model.zero_optimisers()
 
             plotter.add_plot_data('loss', loss.item(), epoch, train_step)
             for key, value in model.get_metrics().items():
                 plotter.add_plot_data(key, value, epoch, train_step)
-
-            model.eval()
-            try:
-                data = next(validation_load_iter)
-            except StopIteration:
-                validation_load_iter = iter(validation_loader)
-                data = next(validation_load_iter)
-
-            with torch.no_grad():
-                loss = model.forward(data) / args.batch_repeats
-            plotter.add_plot_data('validation_loss', loss.item(), epoch, train_step)
-            for key, value in model.get_metrics().items():
-                plotter.add_plot_data('validation_' + key, value, epoch, train_step)
 
             if (train_step+1) % args.print_every == 0:
                 plotter.print_plot_data(epoch, train_step)
@@ -264,9 +249,23 @@ def train(args, model, train_loader, validation_loader):
             train_step += 1
 
         epoch_length = datetime.datetime.now() - epoch_start_time
+        message = 'Finished epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600, (epoch_length.seconds//60)%60, epoch_length.seconds%60)
+        model.eval()
 
-        print('Finished epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600, (epoch_length.seconds//60)%60, epoch_length.seconds%60))
-
+        validation_load_iter = iter(validation_loader)
+        validation_loss = 0
+        validation_metrics = defaultdict(int)
+        for data in validation_load_iter:
+            with torch.no_grad():
+                validation_loss += model.forward(data).item()
+            for key, value in model.get_metrics().items():
+                validation_metrics[key] += value.item()
+        message += ', validation_loss - {}'.format(validation_loss / len(validation_loader.dataset))
+        for key, value in model.get_metrics().items():
+                message += ', validation_{} - {}'.format(key, value / len(validation_loader.dataset))
+        
+        print(message)
+ 
 
 def _topological_loop(theta, batch_sizes):
     new = theta.new
