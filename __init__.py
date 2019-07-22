@@ -182,10 +182,10 @@ def get_hash(filename):
 
 
 def train(args, model, train_loader, validation_loader):
-    train_set = set([data['data_hash'] for data in train_loader.dataset])
-    validation_set = set([data['data_hash'] for data in validation_loader.dataset])
+    #train_set = set([data['data_hash'] for data in train_loader.dataset])
+    #validation_set = set([data['data_hash'] for data in validation_loader.dataset])
 
-    assert len(train_set.intersection(validation_set)) == 0
+    #assert len(train_set.intersection(validation_set)) == 0
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -260,9 +260,9 @@ def train(args, model, train_loader, validation_loader):
                 validation_loss += model.forward(data).item()
             for key, value in model.get_metrics().items():
                 validation_metrics[key] += value.item()
-        message += ', validation_loss - {}'.format(validation_loss / len(validation_loader.dataset))
+        message += ', validation_loss - {}'.format(validation_loss / (len(validation_loader.dataset) // args.batch_size))
         for key, value in model.get_metrics().items():
-                message += ', validation_{} - {}'.format(key, value / len(validation_loader.dataset))
+                message += ', validation_{} - {}'.format(key, value / (len(validation_loader.dataset) // args.batch_size))
         
         print(message)
  
