@@ -217,14 +217,37 @@ def train(args, model, train_loader, validation_loader):
 
     train_step = 0
 
+    epoch_start_time = datetime.datetime.now()
     model.zero_optimisers()
     for epoch in range(args.load_epoch, args.n_epochs):
+        epoch_length = datetime.datetime.now() - epoch_start_time
+        message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
+                                                                (epoch_length.seconds//60)%60, epoch_length.seconds%60)
+        model.eval()
+
+        validation_load_iter = iter(validation_loader)
+        validation_loss = 0
+        validation_metrics = defaultdict(int)
+        for data in validation_load_iter:
+            with torch.no_grad():
+                validation_loss += model.forward(data).item()
+            for key, value in model.get_metrics().items():
+                validation_metrics[key] += value.item()
+        message += ', validation_loss - {}'.format(validation_loss / (len(validation_loader.dataset) // args.batch_size))
+        for key, value in model.get_metrics().items():
+                message += ', validation_{} - {}'.format(key, value / (len(validation_loader.dataset) // args.batch_size))
+        print(message)
+
         epoch_start_time = datetime.datetime.now()
         train_load_iter = iter(train_loader)
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
 
-            loss = model.forward(data) / args.batch_repeats
+            loss = model.forward(data)
+
+            plotter.add_plot_data('loss', loss.item(), epoch, train_step)
+
+            loss /= args.batch_repeats
 
             loss.backward()
 
@@ -232,7 +255,6 @@ def train(args, model, train_loader, validation_loader):
                 model.step_optimisers()
                 model.zero_optimisers()
 
-            plotter.add_plot_data('loss', loss.item(), epoch, train_step)
             for key, value in model.get_metrics().items():
                 plotter.add_plot_data(key, value, epoch, train_step)
 
@@ -247,24 +269,6 @@ def train(args, model, train_loader, validation_loader):
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
             train_step += 1
-
-        epoch_length = datetime.datetime.now() - epoch_start_time
-        message = 'Finished epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600, (epoch_length.seconds//60)%60, epoch_length.seconds%60)
-        model.eval()
-
-        validation_load_iter = iter(validation_loader)
-        validation_loss = 0
-        validation_metrics = defaultdict(int)
-        for data in validation_load_iter:
-            with torch.no_grad():
-                validation_loss += model.forward(data).item()
-            for key, value in model.get_metrics().items():
-                validation_metrics[key] += value.item()
-        message += ', validation_loss - {}'.format(validation_loss / (len(validation_loader.dataset) // args.batch_size))
-        for key, value in model.get_metrics().items():
-                message += ', validation_{} - {}'.format(key, value / (len(validation_loader.dataset) // args.batch_size))
-        
-        print(message)
  
 
 def _topological_loop(theta, batch_sizes):
