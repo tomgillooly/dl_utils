@@ -209,7 +209,7 @@ def train(args, model, train_loader, validation_loader):
 
         if 'stop_epoch' in state_dict.keys():
             args.load_epoch = state_dict.pop('stop_epoch')+1
-            print('Loading step {}'.format(args.load_epoch))
+            print('Loading epoch {}'.format(args.load_epoch))
 
         model.load_state_dict(state_dict)
     else:
@@ -234,7 +234,7 @@ def train(args, model, train_loader, validation_loader):
             for key, value in model.get_metrics().items():
                 validation_metrics[key] += value.item()
         message += ', validation_loss - {}'.format(validation_loss / (len(validation_loader.dataset) // args.batch_size))
-        for key, value in model.get_metrics().items():
+        for key, value in validation_metrics.items():
                 message += ', validation_{} - {}'.format(key, value / (len(validation_loader.dataset) // args.batch_size))
         print(message)
 
@@ -269,7 +269,12 @@ def train(args, model, train_loader, validation_loader):
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
             train_step += 1
- 
+
+        tate_dict = model.state_dict()
+        state_dict['stop_epoch'] = epoch
+        torch.save(state_dict,
+                   os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
+
 
 def _topological_loop(theta, batch_sizes):
     new = theta.new
