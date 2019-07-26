@@ -6,6 +6,7 @@ import subprocess
 import torch
 
 from collections import defaultdict, OrderedDict
+from hashlib import md5
 from zlib import crc32
 
 from . import metrics
@@ -164,11 +165,28 @@ class BaseModel(object):
     def state_dict(self):
         return self.model.state_dict()
 
+    def load_state_dict(self, state_dict):
+        if 'stop_epoch' in state_dict.keys():
+            state_dict.pop('stop_epoch')
+        return self.model.load_state_dict(state_dict)
+
     def __repr__(self):
         return repr(self.model)
 
 
+def get_hash(filename):
+    m = md5()
+    m.update(filename.encode())
+
+    return m.digest()
+
+
 def train(args, model, train_loader, validation_loader):
+    #train_set = set([data['data_hash'] for data in train_loader.dataset])
+    #validation_set = set([data['data_hash'] for data in validation_loader.dataset])
+
+    #assert len(train_set.intersection(validation_set)) == 0
+
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     print(model)
@@ -191,7 +209,7 @@ def train(args, model, train_loader, validation_loader):
 
         if 'stop_epoch' in state_dict.keys():
             args.load_epoch = state_dict.pop('stop_epoch')+1
-            print('Loading step {}'.format(args.load_epoch))
+            print('Loading epoch {}'.format(args.load_epoch))
 
         model.load_state_dict(state_dict)
     else:
@@ -199,42 +217,49 @@ def train(args, model, train_loader, validation_loader):
 
     train_step = 0
 
-    validation_load_iter = iter(validation_loader)
-
+    epoch_start_time = datetime.datetime.now()
     model.zero_optimisers()
     for epoch in range(args.load_epoch, args.n_epochs):
+        epoch_length = datetime.datetime.now() - epoch_start_time
+        message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
+                                                                (epoch_length.seconds//60)%60, epoch_length.seconds%60)
+        model.eval()
+
+        validation_load_iter = iter(validation_loader)
+        validation_loss = 0
+        validation_metrics = defaultdict(int)
+        for data in validation_load_iter:
+            with torch.no_grad():
+                validation_loss += model.forward(data).item()
+            for key, value in model.get_metrics().items():
+                validation_metrics[key] += value.item()
+        message += ', validation_loss - {}'.format(validation_loss / (len(validation_loader.dataset) // args.batch_size))
+        for key, value in validation_metrics.items():
+                message += ', validation_{} - {}'.format(key, value / (len(validation_loader.dataset) // args.batch_size))
+        print(message)
+
         epoch_start_time = datetime.datetime.now()
         train_load_iter = iter(train_loader)
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
 
-            loss = model.forward(data) / args.batch_repeats
+            loss = model.forward(data)
+
+            plotter.add_plot_data('loss', loss.item(), epoch, train_step)
+
+            loss /= args.batch_repeats
 
             loss.backward()
 
-            if args.batch_repeats:
+            if (train_step+1) % args.batch_repeats == 0:
                 model.step_optimisers()
                 model.zero_optimisers()
 
-            plotter.add_plot_data('loss', loss.item(), epoch, epoch_step)
             for key, value in model.get_metrics().items():
-                plotter.add_plot_data(key, value, epoch, epoch_step)
-
-            model.eval()
-            try:
-                data = next(validation_load_iter)
-            except StopIteration:
-                validation_load_iter = iter(validation_loader)
-                data = next(validation_load_iter)
-
-            with torch.no_grad():
-                loss = model.forward(data)
-            plotter.add_plot_data('validation_loss', loss.item(), epoch, epoch_step)
-            for key, value in model.get_metrics().items():
-                plotter.add_plot_data('validation_' + key, value, epoch, epoch_step)
+                plotter.add_plot_data(key, value, epoch, train_step)
 
             if (train_step+1) % args.print_every == 0:
-                plotter.print_plot_data(epoch, epoch_step)
+                plotter.print_plot_data(epoch, train_step)
                 plotter.plot_line()
 
             if (train_step+1) % args.save_every == 0:
@@ -245,7 +270,8 @@ def train(args, model, train_loader, validation_loader):
 
             train_step += 1
 
-        epoch_length = datetime.datetime.now() - epoch_start_time
-
-        print('Finished epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600, (epoch_length.seconds//60)%60, epoch_length.seconds%60))
+        tate_dict = model.state_dict()
+        state_dict['stop_epoch'] = epoch
+        torch.save(state_dict,
+                   os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
 
