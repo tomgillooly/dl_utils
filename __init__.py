@@ -270,7 +270,7 @@ def train(args, model, train_loader, validation_loader):
 
             train_step += 1
 
-        tate_dict = model.state_dict()
+        state_dict = model.state_dict()
         state_dict['stop_epoch'] = epoch
         torch.save(state_dict,
                    os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
