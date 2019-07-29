@@ -42,6 +42,7 @@ class BaseParser(argparse.ArgumentParser):
         self.add_argument('--print_every', type=int, default=5000)
         self.add_argument('--plot_every', type=int, default=100)
         self.add_argument('--save_every', type=int, default=20000)
+        self.add_argument('--train_eval_every', type=int, default=5)
         self.add_argument('--save_dir', type=str, default='checkpoints')
 
         self.add_argument('--visdom_host', type=str, default='localhost')
@@ -68,6 +69,7 @@ class BaseParser(argparse.ArgumentParser):
 
             with open(os.path.join(args.save_dir, args.name, 'opts_{}.txt'.format(now_string)), 'w') as file:
                 for name, val in sorted(vars(args).items()):
+                    print('{}:{}'.format(name, val))
                     file.write('{}:{}\n'.format(name, val))
 
             with open(os.path.join(args.save_dir, args.name, git_patch_name), 'w') as file:
@@ -180,6 +182,29 @@ def get_hash(filename):
 
     return m.digest()
 
+def full_dataset_eval(model, loader, dataset_name):
+    message = ''
+    model.eval()
+
+    load_iter = iter(loader)
+    total_loss = 0
+    metrics = defaultdict(float)
+    for data in load_iter:
+        with torch.no_grad():
+            batch_loss = model.forward(data).item()
+            total_loss += batch_loss
+            print('{}_batch_loss {}'.format(dataset_name, batch_loss))
+        for key, value in model.get_metrics().items():
+            print('{}_batch {} - {}'.format(dataset_name, key, value.item()))
+            metrics[key] += value.item()
+    total_loss /=  (len(loader.dataset) // loader.batch_size)
+    message += ', {}_loss - {}'.format(dataset_name, total_loss)
+    for key, value in metrics.items():
+        value /= (len(loader.dataset) // loader.batch_size)
+        message += ', {}_{} - {}'.format(dataset_name, key, value)
+
+    return message
+
 
 def train(args, model, train_loader, validation_loader):
     #train_set = set([data['data_hash'] for data in train_loader.dataset])
@@ -223,19 +248,7 @@ def train(args, model, train_loader, validation_loader):
         epoch_length = datetime.datetime.now() - epoch_start_time
         message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
                                                                 (epoch_length.seconds//60)%60, epoch_length.seconds%60)
-        model.eval()
-
-        validation_load_iter = iter(validation_loader)
-        validation_loss = 0
-        validation_metrics = defaultdict(int)
-        for data in validation_load_iter:
-            with torch.no_grad():
-                validation_loss += model.forward(data).item()
-            for key, value in model.get_metrics().items():
-                validation_metrics[key] += value.item()
-        message += ', validation_loss - {}'.format(validation_loss / (len(validation_loader.dataset) // args.batch_size))
-        for key, value in validation_metrics.items():
-                message += ', validation_{} - {}'.format(key, value / (len(validation_loader.dataset) // args.batch_size))
+        message += full_dataset_eval(model, validation_loader, 'validation')
         print(message)
 
         epoch_start_time = datetime.datetime.now()
@@ -270,10 +283,16 @@ def train(args, model, train_loader, validation_loader):
 
             train_step += 1
 
-        tate_dict = model.state_dict()
+        state_dict = model.state_dict()
         state_dict['stop_epoch'] = epoch
         torch.save(state_dict,
                    os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
+
+        if (epoch + 1) % args.train_eval_every == 0:
+            message = 'End of epoch {}'.format(epoch)
+            message += full_dataset_eval(model, train_loader, 'train')
+
+            print(message)
 
 
 def _topological_loop(theta, batch_sizes):
