@@ -235,7 +235,12 @@ def train(args, model, train_loader, validation_loader):
                                              '{}_{}.pth'.format(model.save_name, args.load_epoch)))
 
         if 'stop_epoch' in state_dict.keys():
-            args.load_epoch, train_step = state_dict.pop('stop_epoch')+1
+            stop_point = state_dict.pop('stop_epoch')
+            try:
+                args.load_epoch, train_step = stop_point
+            except TypeError:
+                train_step = int(args.load_epoch)+1
+                args.load_epoch = stop_point + 1
             print('Loading epoch {}'.format(args.load_epoch))
 
         model.load_state_dict(state_dict)
