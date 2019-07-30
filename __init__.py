@@ -193,9 +193,9 @@ def full_dataset_eval(model, loader, dataset_name):
         with torch.no_grad():
             batch_loss = model.forward(data).item()
             total_loss += batch_loss
-            print('{}_batch_loss {}'.format(dataset_name, batch_loss))
+            # print('{}_batch_loss {}'.format(dataset_name, batch_loss))
         for key, value in model.get_metrics().items():
-            print('{}_batch {} - {}'.format(dataset_name, key, value.item()))
+            # print('{}_batch {} - {}'.format(dataset_name, key, value.item()))
             metrics[key] += value.item()
     total_loss /=  (len(loader.dataset) // loader.batch_size)
     message += ', {}_loss - {}'.format(dataset_name, total_loss)
@@ -222,6 +222,8 @@ def train(args, model, train_loader, validation_loader):
 
     plotter = Plotter(args, len(train_loader.dataset))
 
+    train_step = 0
+    
     if args.load_epoch != '':
         # Convert load_iter to correctly formatted string if necessary
         try:
@@ -233,14 +235,12 @@ def train(args, model, train_loader, validation_loader):
                                              '{}_{}.pth'.format(model.save_name, args.load_epoch)))
 
         if 'stop_epoch' in state_dict.keys():
-            args.load_epoch = state_dict.pop('stop_epoch')+1
+            args.load_epoch, train_step = state_dict.pop('stop_epoch')+1
             print('Loading epoch {}'.format(args.load_epoch))
 
         model.load_state_dict(state_dict)
     else:
         args.load_epoch = 0
-
-    train_step = 0
 
     epoch_start_time = datetime.datetime.now()
     model.zero_optimisers()
@@ -277,14 +277,14 @@ def train(args, model, train_loader, validation_loader):
 
             if (train_step+1) % args.save_every == 0:
                 state_dict = model.state_dict()
-                state_dict['stop_epoch'] = epoch
+                state_dict['stop_epoch'] = (epoch, train_step+1)
                 torch.save(state_dict,
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
             train_step += 1
 
         state_dict = model.state_dict()
-        state_dict['stop_epoch'] = epoch
+        state_dict['stop_epoch'] = (epoch, train_step+1)
         torch.save(state_dict,
                    os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
 
