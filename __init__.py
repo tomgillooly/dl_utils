@@ -239,8 +239,13 @@ def train(args, model, train_loader, validation_loader):
             try:
                 args.load_epoch, train_step = stop_point
             except TypeError:
-                train_step = int(args.load_epoch)+1
-                args.load_epoch = stop_point + 1
+                if args.load_epoch == 'latest':
+                    args.load_epoch = stop_point+1
+                    # Best estimate of stopping point
+                    train_step = (len(train_loader.dataset) // args.batch_size)*stop_point + 1
+                else:
+                    train_step = int(args.load_epoch)+1 
+                    args.load_epoch = stop_point + 1
             print('Loading epoch {}'.format(args.load_epoch))
 
         model.load_state_dict(state_dict)
