@@ -4,6 +4,7 @@ import numpy as np
 import os
 import subprocess
 import torch
+import torch.nn as nn
 
 from collections import defaultdict, OrderedDict
 from hashlib import md5
@@ -139,7 +140,7 @@ class Plotter(object):
         print(message)
 
 
-class BaseModel(object):
+class BaseModel(nn.Module):
     def forward(self, input):
         raise NotImplementedError('Model forward pass not implemented')
 
@@ -165,12 +166,12 @@ class BaseModel(object):
         self.model.eval()
 
     def state_dict(self):
-        return self.model.state_dict()
+        return nn.Module.state_dict(self)
 
     def load_state_dict(self, state_dict):
         if 'stop_epoch' in state_dict.keys():
             state_dict.pop('stop_epoch')
-        return self.model.load_state_dict(state_dict)
+        return nn.Module.load_state_dict(self, state_dict)
 
     def __repr__(self):
         return repr(self.model)
@@ -217,6 +218,7 @@ def train(args, model, train_loader, validation_loader):
     print(model)
 
     print('Loaded {} training data points'.format(len(train_loader.dataset)))
+    print('Loaded {} validation data points'.format(len(validation_loader.dataset)))
 
     model = model.to(device)
 
@@ -292,9 +294,10 @@ def train(args, model, train_loader, validation_loader):
         state_dict['stop_epoch'] = (epoch, train_step+1)
         torch.save(state_dict,
                    os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
+        print('Saving latest model')
 
         if (epoch + 1) % args.train_eval_every == 0:
-            message = 'End of epoch {}'.format(epoch)
+            message = 'End of epoch {}'.format(epoch+1)
             message += full_dataset_eval(model, train_loader, 'train')
 
             print(message)
