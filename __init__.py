@@ -150,20 +150,14 @@ class BaseModel(nn.Module):
     def step_optimisers(self):
         [optimiser.step() for optimiser in self.optimisers]
 
-    def get_metrics(self):
+    def get_metrics(self, input, output):
         raise NotImplementedError('Model get metrics not implemented')
 
     def to(self, device):
-        self.model = self.model.to(device)
+        super(BaseModel, self).to(device)
         self.device = device
 
         return self
-
-    def train(self):
-        self.model.train()
-
-    def eval(self):
-        self.model.eval()
 
     def state_dict(self):
         return nn.Module.state_dict(self)
@@ -172,9 +166,6 @@ class BaseModel(nn.Module):
         if 'stop_epoch' in state_dict.keys():
             state_dict.pop('stop_epoch')
         return nn.Module.load_state_dict(self, state_dict)
-
-    def __repr__(self):
-        return repr(self.model)
 
 
 def get_hash(filename):
@@ -192,10 +183,11 @@ def full_dataset_eval(model, loader, dataset_name):
     metrics = defaultdict(float)
     for data in load_iter:
         with torch.no_grad():
-            batch_loss = model.forward(data).item()
+            batch_output = model.forward(data)
+            batch_loss = model.criterion(data, batch_output).item()
             total_loss += batch_loss
             # print('{}_batch_loss {}'.format(dataset_name, batch_loss))
-        for key, value in model.get_metrics().items():
+        for key, value in model.get_metrics(data, batch_output).items():
             # print('{}_batch {} - {}'.format(dataset_name, key, value.item()))
             metrics[key] += value.item()
     total_loss /=  (len(loader.dataset) // loader.batch_size)
@@ -268,7 +260,8 @@ def train(args, model, train_loader, validation_loader):
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
 
-            loss = model.forward(data)
+            output = model.forward(data)
+            loss = model.criterion(data, output)
 
             plotter.add_plot_data('loss', loss.item(), epoch, train_step)
 
@@ -280,7 +273,7 @@ def train(args, model, train_loader, validation_loader):
                 model.step_optimisers()
                 model.zero_optimisers()
 
-            for key, value in model.get_metrics().items():
+            for key, value in model.get_metrics(data, output).items():
                 plotter.add_plot_data(key, value, epoch, train_step)
 
             if (train_step+1) % args.print_every == 0:
