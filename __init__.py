@@ -159,9 +159,6 @@ class BaseModel(nn.Module):
 
         return self
 
-    def state_dict(self):
-        return nn.Module.state_dict(self)
-
     def load_state_dict(self, state_dict):
         if 'stop_epoch' in state_dict.keys():
             state_dict.pop('stop_epoch')
@@ -181,7 +178,8 @@ def full_dataset_eval(model, loader, dataset_name):
     load_iter = iter(loader)
     total_loss = 0
     metrics = defaultdict(float)
-    for data in load_iter:
+    for i, data in enumerate(load_iter):
+        print('Processing {} of {}\r\r'.format(i*loader.batch_size, len(loader.dataset)), end='\r')
         with torch.no_grad():
             batch_output = model.forward(data)
             batch_loss = model.criterion(data, batch_output).item()

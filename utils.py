@@ -269,10 +269,10 @@ def backtrack_Q(Q_batch, heights, widths):
         i = heights[b]-1
         j = widths[b]-1
         while True:
-            if i < 0 or j < 0:
-                break
-
             path = [(i, j)] + path
+
+            if i == 0 and j == 0:
+                break
 
             if j == 0:
                 i -= 1
@@ -282,6 +282,9 @@ def backtrack_Q(Q_batch, heights, widths):
                 parent_idx = Q[i, j]
                 j -= 1 if parent_idx == 0 or parent_idx == 2 else 0
                 i -= 1 if parent_idx == 0 or parent_idx == 1 else 0
+
+            i = max(i, 0)
+            j = max(j, 0)
 
         paths.append(path)
 
