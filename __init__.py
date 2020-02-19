@@ -35,6 +35,7 @@ class BaseParser(argparse.ArgumentParser):
         self.add_argument('--learning_rate', type=float, default=0.01)
         self.add_argument('--beta1', type=float, default=0.9)
         self.add_argument('--beta2', type=float, default=0.999)
+        self.add_argument('--weight_decay', type=float, default=1e-5)
 
         self.add_argument('--n_epochs', type=int, default=5)
         self.add_argument('--start_epoch', type=int, default=1)
@@ -164,6 +165,9 @@ class BaseModel(nn.Module):
             state_dict.pop('stop_epoch')
         return nn.Module.load_state_dict(self, state_dict)
 
+    def step_schedulers(self):
+        pass
+
 
 def get_hash(filename):
     m = md5()
@@ -284,6 +288,7 @@ def train(args, model, train_loader, validation_loader):
                 torch.save(state_dict,
                            os.path.join(args.save_dir, args.name, '{}_{:06}.pth'.format(model.save_name, train_step+1)))
 
+            model.step_schedulers()
             train_step += 1
 
         state_dict = model.state_dict()
@@ -291,6 +296,7 @@ def train(args, model, train_loader, validation_loader):
         torch.save(state_dict,
                    os.path.join(args.save_dir, args.name, '{}_latest.pth'.format(model.save_name)))
         print('Saving latest model')
+        model.print_optim_params()
 
         if (epoch + 1) % args.train_eval_every == 0:
             message = 'End of epoch {}'.format(epoch+1)
