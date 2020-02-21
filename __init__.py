@@ -105,6 +105,15 @@ class Plotter(object):
         self.plot_data = defaultdict(list)
 
         self.base_win_id = crc32(bytes(args.name, encoding='latin1'))
+        self.window_ids = {}
+
+    def get_window_id(self, series_name):
+        key = series_name.replace('train_', '').replace('_validation, ''')
+
+        if key not in self.window_ids.keys():
+            self.window_ids[key] = self.base_win_id + len(self.window_ids.items())
+
+        return self.window_ids[key]
 
     def add_plot_data(self, name, data, epoch, iter):
         if name not in self.running_plot_data.keys():
@@ -127,7 +136,7 @@ class Plotter(object):
             x_data, y_data = zip(*points)
             self.vis.line(X=torch.Tensor(x_data).clone().detach().cpu(),
                           Y=torch.Tensor(y_data).clone().detach().cpu(),
-                          win=self.base_win_id+1+i,
+                          win=self.get_window_id(series_name),
                           opts={'title': '{} {}'.format(self.args.name, series_name.lower())})
 
     def print_plot_data(self, epoch, iter):
@@ -177,7 +186,7 @@ def get_hash(filename):
 
     return m.digest()
 
-def full_dataset_eval(model, loader, dataset_name):
+def full_dataset_eval(model, loader, dataset_name, plotter, epoch, train_step):
     message = ''
     model.eval()
 
@@ -196,9 +205,11 @@ def full_dataset_eval(model, loader, dataset_name):
             metrics[key] += value.item()
     total_loss /=  (len(loader.dataset) // loader.batch_size)
     message += ', {}_loss - {}'.format(dataset_name, total_loss)
+    plotter.add_plot_data('loss_{}'.format(dataset_name), total_loss, epoch, train_step)
     for key, value in metrics.items():
         value /= (len(loader.dataset) // loader.batch_size)
         message += ', {}_{} - {}'.format(dataset_name, key, value)
+        plotter.add_plot_data('{}_{}'.format(key, dataset_name), value, epoch, train_step)
 
     return message
 
@@ -260,7 +271,7 @@ def train(args, model, train_loader, validation_loader):
         epoch_length = datetime.datetime.now() - epoch_start_time
         message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
                                                                 (epoch_length.seconds//60)%60, epoch_length.seconds%60)
-        message += full_dataset_eval(model, validation_loader, 'validation')
+        message += full_dataset_eval(model, validation_loader, 'validation', plotter, epoch, train_step)
         print(message)
 
         epoch_start_time = datetime.datetime.now()
@@ -309,6 +320,6 @@ def train(args, model, train_loader, validation_loader):
 
         if (epoch + 1) % args.train_eval_every == 0:
             message = 'End of epoch {}'.format(epoch+1)
-            message += full_dataset_eval(model, train_loader, 'train')
+            message += full_dataset_eval(model, train_loader, 'train', plotter, epoch, train_step)
 
             print(message)
