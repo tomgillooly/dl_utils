@@ -108,10 +108,10 @@ class Plotter(object):
         self.window_ids = {}
 
     def get_window_id(self, series_name):
-        key = series_name.replace('train_', '').replace('_validation, ''')
+        key = series_name.replace('_train', '').replace('_validation', '')
 
         if key not in self.window_ids.keys():
-            self.window_ids[key] = self.base_win_id + len(self.window_ids.items())
+            self.window_ids[key] = str(self.base_win_id + len(self.window_ids.items()))
 
         return self.window_ids[key]
 
@@ -126,24 +126,25 @@ class Plotter(object):
                 continue
             x_data, y_data = zip(*points)
             avg_data = np.mean(torch.Tensor(y_data).clone().detach().cpu().numpy())
-            self.plot_data[series_name].append((x_data[-1], avg_data))
+            self.plot_data[series_name] = ([x_data[-1]], [avg_data])
             self.running_plot_data[series_name] = []
 
     def plot_line(self):
         self.process_plot_data()
 
         for i, (series_name, points) in enumerate(self.plot_data.items()):
-            x_data, y_data = zip(*points)
+            x_data, y_data = points
             self.vis.line(X=torch.Tensor(x_data).clone().detach().cpu(),
                           Y=torch.Tensor(y_data).clone().detach().cpu(),
                           win=self.get_window_id(series_name),
-                          opts={'title': '{} {}'.format(self.args.name, series_name.lower())})
+                          update='append', name=series_name.lower(),
+                          opts={'title': '{} {}'.format(self.args.name, series_name.replace('_train', '').replace('_validation', '').lower())})
 
     def print_plot_data(self, epoch, iter):
         self.process_plot_data()
 
         message = 'Epoch {}, iter {}: '.format(epoch, iter) + \
-                  ', '.join(['{} - {}'.format(series_name, values[-1][1])
+                  ', '.join(['{} - {}'.format(series_name, values[1][-1])
                              for series_name, values in self.plot_data.items()])
 
         with open(self.args.log_file_name, 'a') as file:
