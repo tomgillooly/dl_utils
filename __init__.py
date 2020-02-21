@@ -106,6 +106,7 @@ class Plotter(object):
 
         self.base_win_id = crc32(bytes(args.name, encoding='latin1'))
         self.window_ids = {}
+        self.legend = defaultdict(list)
 
     def get_window_id(self, series_name):
         key = series_name.replace('_train', '').replace('_validation', '')
@@ -127,18 +128,26 @@ class Plotter(object):
             x_data, y_data = zip(*points)
             avg_data = np.mean(torch.Tensor(y_data).clone().detach().cpu().numpy())
             self.plot_data[series_name] = ([x_data[-1]], [avg_data])
+
+            win_id = self.get_window_id(series_name)
+            if series_name not in self.legend[win_id]:
+                self.legend[win_id].append(series_name)
+>>>>>>> Stashed changes
             self.running_plot_data[series_name] = []
 
     def plot_line(self):
+        self.legend = defaultdict(list)
         self.process_plot_data()
 
         for i, (series_name, points) in enumerate(self.plot_data.items()):
+            win_id = self.get_window_id(series_name)
             x_data, y_data = points
             self.vis.line(X=torch.Tensor(x_data).clone().detach().cpu(),
                           Y=torch.Tensor(y_data).clone().detach().cpu(),
-                          win=self.get_window_id(series_name),
+                          win=win_id,
                           update='append', name=series_name.lower(),
-                          opts={'title': '{} {}'.format(self.args.name, series_name.replace('_train', '').replace('_validation', '').lower())})
+                          opts={'title': '{} {}'.format(self.args.name, series_name.replace('_train', '').replace('_validation', '').lower()),
+                                'legend': self.legend[win_id]})
 
     def print_plot_data(self, epoch, iter):
         self.process_plot_data()
