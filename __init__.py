@@ -37,7 +37,9 @@ class BaseParser(argparse.ArgumentParser):
         self.add_argument('--beta2', type=float, default=0.999)
         self.add_argument('--weight_decay', type=float, default=1e-5)
 
-        self.add_argument('--n_epochs', type=int, default=5)
+        training_duration = self.add_mutually_exclusive_group()
+        training_duration.add_argument('--n_epochs', type=int)
+        training_duration.add_argument('--n_iters', type=int)
         self.add_argument('--start_epoch', type=int, default=1)
         self.add_argument('--load_epoch', type=str, default='')
 
@@ -250,7 +252,11 @@ def train(args, model, train_loader, validation_loader):
 
     epoch_start_time = datetime.datetime.now()
     model.zero_optimisers()
-    for epoch in range(args.load_epoch, args.n_epochs):
+
+    train_end_epoch = args.n_epochs if args.n_epochs is not None else \
+        int(np.ceil((args.n_iters * args.batch_size) / len(train_loader.dataset)))
+
+    for epoch in range(args.load_epoch, train_end_epoch):
         epoch_length = datetime.datetime.now() - epoch_start_time
         message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
                                                                 (epoch_length.seconds//60)%60, epoch_length.seconds%60)
@@ -290,6 +296,9 @@ def train(args, model, train_loader, validation_loader):
 
             model.step_schedulers()
             train_step += 1
+
+            if args.n_iters is not None and train_step == args.n_iters:
+                break
 
         state_dict = model.state_dict()
         state_dict['stop_epoch'] = (epoch, train_step+1)
