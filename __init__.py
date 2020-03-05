@@ -132,7 +132,6 @@ class Plotter(object):
             win_id = self.get_window_id(series_name)
             if series_name not in self.legend[win_id]:
                 self.legend[win_id].append(series_name)
->>>>>>> Stashed changes
             self.running_plot_data[series_name] = []
 
     def plot_line(self):
@@ -148,6 +147,8 @@ class Plotter(object):
                           update='append', name=series_name.lower(),
                           opts={'title': '{} {}'.format(self.args.name, series_name.replace('_train', '').replace('_validation', '').lower()),
                                 'legend': self.legend[win_id]})
+
+        self.plot_data = defaultdict(list)
 
     def print_plot_data(self, epoch, iter):
         self.process_plot_data()
