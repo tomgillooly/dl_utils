@@ -127,28 +127,36 @@ class Plotter(object):
                 continue
             x_data, y_data = zip(*points)
             avg_data = np.mean(torch.Tensor(y_data).clone().detach().cpu().numpy())
-            self.plot_data[series_name] = ([x_data[-1]], [avg_data])
-
+ 
             win_id = self.get_window_id(series_name)
             if series_name not in self.legend[win_id]:
                 self.legend[win_id].append(series_name)
+
+            self.plot_data[series_name] = ([x_data[-1]], [avg_data])
+
             self.running_plot_data[series_name] = []
 
     def plot_line(self):
-        self.legend = defaultdict(list)
         self.process_plot_data()
 
-        for i, (series_name, points) in enumerate(self.plot_data.items()):
+        for key in self.window_ids.keys():
+            legend = []
+            x_data = 0
+            y_data = []
+            for series_name, points in filter(lambda item: key in item[0], self.plot_data.items()):
+                x, y = points
+                x_data = max(x[0], x_data)
+                y_data.append(y)
+                legend.append(series_name)
+           
             win_id = self.get_window_id(series_name)
-            x_data, y_data = points
-            self.vis.line(X=torch.Tensor(x_data).clone().detach().cpu(),
+            self.vis.line(X=torch.Tensor([x_data]).clone().detach().cpu(),
                           Y=torch.Tensor(y_data).clone().detach().cpu(),
                           win=win_id,
-                          update='append', name=series_name.lower(),
-                          opts={'title': '{} {}'.format(self.args.name, series_name.replace('_train', '').replace('_validation', '').lower()),
-                                'legend': self.legend[win_id]})
+                          update='append',
+                          opts={'title': '{} {}'.format(self.args.name, key),
+                                'legend': legend})
 
-        self.plot_data = defaultdict(list)
 
     def print_plot_data(self, epoch, iter):
         self.process_plot_data()
