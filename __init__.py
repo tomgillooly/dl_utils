@@ -290,7 +290,7 @@ def train(args, model, train_loader, validation_loader):
         epoch_length = datetime.datetime.now() - epoch_start_time
         message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
                                                                 (epoch_length.seconds//60)%60, epoch_length.seconds%60)
-        message += full_dataset_eval(model, validation_loader, 'validation', plotter, epoch, train_step)
+        message += full_dataset_eval(model, validation_loader, 'validation', plotter, epoch, 0)
         print(message)
 
         epoch_start_time = datetime.datetime.now()
@@ -301,7 +301,7 @@ def train(args, model, train_loader, validation_loader):
             output = model.forward(data)
             loss = model.criterion(data, output)
 
-            plotter.add_plot_data('loss', loss.item(), epoch, train_step)
+            plotter.add_plot_data('loss', loss.item(), epoch, epoch_step)
 
             loss /= args.batch_repeats
 
@@ -312,7 +312,7 @@ def train(args, model, train_loader, validation_loader):
                 model.zero_optimisers()
 
             for key, value in model.get_metrics(data, output).items():
-                plotter.add_plot_data(key, value, epoch, train_step)
+                plotter.add_plot_data(key, value, epoch, epoch_step)
 
             if (train_step+1) % args.print_every == 0:
                 plotter.print_plot_data(epoch, train_step)
@@ -339,6 +339,6 @@ def train(args, model, train_loader, validation_loader):
 
         if (epoch + 1) % args.train_eval_every == 0:
             message = 'End of epoch {}'.format(epoch+1)
-            message += full_dataset_eval(model, train_loader, 'train', plotter, epoch, train_step)
+            message += full_dataset_eval(model, train_loader, 'train', plotter, epoch+1, 0)
 
             print(message)
