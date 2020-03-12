@@ -283,12 +283,14 @@ def train(args, model, train_loader, validation_loader):
     epoch_start_time = datetime.datetime.now()
     model.zero_optimisers()
 
-    train_end_epoch = args.n_epochs if args.n_epochs is not None else \
-        int(np.ceil((args.n_iters * args.batch_size) / len(train_loader.dataset)))
+    # Get final epoch based on number of desired training iterations
+    iters_per_epoch = len(train_loader.dataset) / args.batch_size
+    iters_per_epoch = int(iters_per_epoch) if train_loader.drop_last else int(np.ceil(iters_per_epoch))
+    train_end_epoch = int(np.ceil(args.n_iters / iters_per_epoch)) if args.n_iters else args.n_epochs
 
     for epoch in range(args.load_epoch, train_end_epoch):
         epoch_length = datetime.datetime.now() - epoch_start_time
-        message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch+1, epoch_length.seconds//3600,
+        message = 'Start of epoch {}, duration {}:{}:{}'.format(epoch, epoch_length.seconds//3600,
                                                                 (epoch_length.seconds//60)%60, epoch_length.seconds%60)
         message += full_dataset_eval(model, validation_loader, 'validation', plotter, epoch, 0)
         print(message)
@@ -338,7 +340,7 @@ def train(args, model, train_loader, validation_loader):
         model.print_optim_params()
 
         if (epoch + 1) % args.train_eval_every == 0:
-            message = 'End of epoch {}'.format(epoch+1)
+            message = 'End of epoch {}'.format(epoch)
             message += full_dataset_eval(model, train_loader, 'train', plotter, epoch+1, 0)
 
             print(message)
