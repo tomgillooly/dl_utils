@@ -156,6 +156,7 @@ class Plotter(object):
                           update='append',
                           opts={'title': '{} {}'.format(self.args.name, key),
                                 'legend': legend})
+        self.plot_data = defaultdict(list)
 
 
     def print_plot_data(self, epoch, iter):
