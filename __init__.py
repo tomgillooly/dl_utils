@@ -301,7 +301,7 @@ def train(args, model, train_loader, validation_loader):
         for epoch_step, data in enumerate(train_load_iter):
             model.train()
 
-            output = model.forward(data)
+            output = model(data)
             loss = model.criterion(data, output)
 
             plotter.add_plot_data('loss', loss.item(), epoch, epoch_step)
